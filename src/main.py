@@ -9,6 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from src.database.models import async_main, ConditionsGoods
 from src.database.requests import *
+from src.database.session import get_db
 from src.models import (
     Token,
     UserCreate,
@@ -31,20 +32,27 @@ app = FastAPI(title="Площадка для обмена товарами")
 
 
 @app.post("/register", tags=["users"])
-async def registration_user(user: UserCreate):
-    if await is_username_taken(username=user.username):
-        raise HTTPException(status_code=400, detail="Пользователь с таким именем уже существует")
+async def registration_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
+    if await is_username_taken(username=user.username, db=db):
+        raise HTTPException(
+            status_code=400, detail="Пользователь с таким именем уже существует"
+        )
 
     hashed_password = get_password_hash(user.password)
-    await user_registration(user.username, hashed_password)
+    await user_registration(user.username, hashed_password, db)
     return {"message": "Пользователь зарегистрирован"}
 
 
 @app.post("/login", tags=["users"])
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: AsyncSession = Depends(get_db),
 ) -> Token:
-    user = await authenticate_user(form_data.username, form_data.password)
+    user = await authenticate_user(
+        form_data.username,
+        form_data.password,
+        db=db,
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -59,16 +67,18 @@ async def login_for_access_token(
 
 
 @app.get("/goods/mine", tags=["goods"])
-async def read_your_goods(current_user: Annotated[UsersORM, Depends(get_current_user)]):
-    response = await get_your_goods(current_user.id)
+async def read_your_goods(current_user: Annotated[UsersORM, Depends(get_current_user)], db: AsyncSession = Depends(get_db)):
+    response = await get_your_goods(current_user.id, db)
     return response
 
 
 @app.post("/goods/", tags=["goods"])
 async def create_goods(
-    good: Goods, current_user: Annotated[UsersORM, Depends(get_current_user)]
+    good: Goods,
+    current_user: Annotated[UsersORM, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
 ):
-    response = await add_goods(good, user_id=current_user.id)
+    response = await add_goods(good, user_id=current_user.id, db=db)
     return {"message": "товар добавлен", "goods": response}
 
 
@@ -78,14 +88,15 @@ async def get_goods(
     condition: ConditionsGoods | None = None,
     search: str | None = None,
     limit: int = Query(default=10, le=20),
+    db: AsyncSession = Depends(get_db),
 ):
-    response = await get_goods_from_db(category, condition, search, limit)
+    response = await get_goods_from_db(category, condition, search, limit, db)
     return response
 
 
 @app.get("/goods/{good_id}", response_model=GoodsOut, tags=["goods"])
-async def get_one_good(good_id: int):
-    response = await get_good_by_id(good_id)
+async def get_one_good(good_id: int, db: AsyncSession = Depends(get_db)):
+    response = await get_good_by_id(good_id, db)
     return response
 
 
@@ -94,16 +105,19 @@ async def edit_good(
     good_id: int,
     update_data: GoodsUpdate,
     current_user: Annotated[UsersORM, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
 ):
-    updated = await update_goods(good_id, update_data, user_id=current_user.id)
+    updated = await update_goods(good_id, update_data, user_id=current_user.id, db=db)
     return updated
 
 
 @app.delete("/goods/{good_id}", tags=["goods"])
 async def delete_good(
-    good_id: int, current_user: Annotated[UsersORM, Depends(get_current_user)]
+    good_id: int,
+    current_user: Annotated[UsersORM, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
 ):
-    response = await delete_good_by_id(good_id, current_user.id)
+    response = await delete_good_by_id(good_id, current_user.id, db=db)
     return response
 
 
@@ -111,8 +125,9 @@ async def delete_good(
 async def send_trade_offer(
     trade_data: TradeCreate,
     current_user: Annotated[UsersORM, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
 ):
-    trade = await create_trade(trade_data, sender_id=current_user.id)
+    trade = await create_trade(trade_data, sender_id=current_user.id, db=db)
     return trade
 
 
@@ -122,11 +137,13 @@ async def get_list_trades(
     receiver_id: int = None,
     trade_status: TradeStatus = None,
     current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    if not sender_id and not receiver_id:
+    if sender_id is None and receiver_id is None:
         sender_id = current_user.id
         receiver_id = current_user.id
-    trades = await get_trades(sender_id, receiver_id, trade_status)
+
+    trades = await get_trades(sender_id, receiver_id, trade_status, db=db)
     return trades
 
 
@@ -135,14 +152,12 @@ async def change_trade_status(
     offer_id: int,
     update: TradeUpdate,
     current_user: Annotated[UsersORM, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
 ):
-    trade = await update_trade_status(offer_id, update.status, current_user.id)
+    trade = await update_trade_status(offer_id, update.status, current_user.id, db=db)
     return trade
 
 
-@app.get("/app")
-async def get_app():
-    return "server"
 
 if __name__ == "__main__":
     asyncio.run(async_main())
