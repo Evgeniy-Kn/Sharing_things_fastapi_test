@@ -21,7 +21,7 @@
 
 ```source venv/bin/activate``` - для Linux/macOS 
 
-```.venv\Scripts\activate.ps1``` - для Windows (PowerShell)
+```venv\Scripts\activate.ps1``` - для Windows (PowerShell)
 
 ### 5. Установка зависимостей
 
