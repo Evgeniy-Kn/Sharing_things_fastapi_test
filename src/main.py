@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Annotated
 
@@ -7,9 +8,9 @@ from fastapi import Depends, FastAPI, status
 from fastapi.params import Query
 from fastapi.security import OAuth2PasswordRequestForm
 
-from src.database.models import async_main, ConditionsGoods
+from src.database.models import async_main, ConditionsGoods, Base
 from src.database.requests import *
-from src.database.session import get_db
+from src.database.session import get_db, engine
 from src.models import (
     Token,
     UserCreate,
@@ -28,7 +29,15 @@ from src.security import (
     get_current_user,
 )
 
-app = FastAPI(title="Площадка для обмена товарами")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+
+
+app = FastAPI(lifespan=lifespan, title="Площадка для обмена товарами")
 
 
 @app.post("/register", tags=["users"])
@@ -67,7 +76,10 @@ async def login_for_access_token(
 
 
 @app.get("/goods/mine", tags=["goods"])
-async def read_your_goods(current_user: Annotated[UsersORM, Depends(get_current_user)], db: AsyncSession = Depends(get_db)):
+async def read_your_goods(
+    current_user: Annotated[UsersORM, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
     response = await get_your_goods(current_user.id, db)
     return response
 
@@ -156,7 +168,6 @@ async def change_trade_status(
 ):
     trade = await update_trade_status(offer_id, update.status, current_user.id, db=db)
     return trade
-
 
 
 if __name__ == "__main__":
