@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import GoodsORM, UsersORM, TradeORM, TradeStatus, async_session
+from src.database.models import GoodsORM, UsersORM, TradeORM, TradeStatus
 from sqlalchemy import select, or_
 
 from src.models import Goods, GoodsOut, GoodsUpdate, TradeCreate, TradeOut

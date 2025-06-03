@@ -1,4 +1,3 @@
-import asyncio
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Annotated
@@ -8,7 +7,7 @@ from fastapi import Depends, FastAPI, status
 from fastapi.params import Query
 from fastapi.security import OAuth2PasswordRequestForm
 
-from src.database.models import async_main, ConditionsGoods, Base
+from src.database.models import ConditionsGoods, Base
 from src.database.requests import *
 from src.database.session import get_db, engine
 from src.models import (
@@ -171,5 +170,4 @@ async def change_trade_status(
 
 
 if __name__ == "__main__":
-    asyncio.run(async_main())
-    uvicorn.run("main:app", host="127.0.0.1", port=8080, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
